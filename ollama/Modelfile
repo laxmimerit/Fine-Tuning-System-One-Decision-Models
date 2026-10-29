@@ -1,0 +1,3 @@
+FROM ./mini-laya.gguf
+TEMPLATE {{ .Prompt }}
+PARAMETER num_ctx 512

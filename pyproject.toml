@@ -1,0 +1,48 @@
+[project]
+name = "fine-tuning-system-one-decision-models"
+version = "0.1.0"
+description = "Fine-Tuning System One Decision Models: Jev, Laya, Kev and training your own"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "Laxmi Kant Tiwari", email = "info@kgptalkie.com" }]
+
+dependencies = [
+    # The Jev API and its LangChain integration
+    "typesafe-sdk>=0.7.1",
+    "langchain-typesafe[experimental]",
+    # Laya, open weights, plus its Jev-compatible HTTP server
+    "laya[serve]==0.4.15",
+    # Transformers, and reading option probabilities off an open LLM's logits
+    "torch>=2.8",
+    "transformers>=4.48",
+    "accelerate",
+    # Evaluation and plots
+    "datasets",
+    "pandas",
+    "matplotlib",
+    "scikit-learn",
+    "python-dotenv",
+    # Running the notebooks
+    "jupyter",
+    "ipykernel",
+    "truststore",
+    "langchain-ollama>=1.1.0",
+    "peft>=0.21.0",
+    "langchain-openrouter>=0.2.9",
+    "bitsandbytes>=0.50.2",
+    "evaluate>=0.4.6",
+    # Writing Mini Laya as one GGUF file that Ollama runs (Section 8)
+    "gguf>=0.19",
+]
+
+[tool.uv]
+package = false
+
+# RTX 50xx (Blackwell) needs CUDA 12.8 or newer wheels
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

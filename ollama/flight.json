@@ -1,0 +1,13 @@
+{
+  "model": "mini-laya",
+  "state": "My flight was cancelled and nobody at the desk would help.",
+  "questions": {
+    "topic": {"type": "choice", "instructions": "What is it about?",
+              "criteria": {"travel": null, "banking": null, "food": null}},
+    "sentiment": {"type": "score", "instructions": "How does the customer feel?",
+                  "criteria": ["very negative", "negative", "neutral",
+                               "positive", "very positive"]},
+    "refund": {"type": "noul",
+               "instructions": "Is the customer likely to ask for a refund?"}
+  }
+}
