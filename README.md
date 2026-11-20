@@ -18,7 +18,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12">
-  <img src="https://img.shields.io/badge/PyTorch-CUDA%2012.8-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch">
+  <img src="https://img.shields.io/badge/PyTorch-CUDA%2012.8%20%7C%20Apple%20MPS-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch">
   <img src="https://img.shields.io/badge/Hugging%20Face-Transformers-FFD21E?logo=huggingface&logoColor=black" alt="Hugging Face Transformers">
   <img src="https://img.shields.io/badge/PEFT-LoRA%20%7C%20QLoRA-6E40C9" alt="PEFT">
   <img src="https://img.shields.io/badge/Ollama-GGUF-000000?logo=ollama&logoColor=white" alt="Ollama">
@@ -30,6 +30,7 @@
   <a href="#course-map">Course map</a> ·
   <a href="#repository-layout">Layout</a> ·
   <a href="#setup">Setup</a> ·
+  <a href="#setup-on-a-mac-apple-silicon">Mac setup</a> ·
   <a href="#mini-laya-in-ollama-section-8">Mini Laya in Ollama</a> ·
   <a href="#known-issues">Known issues</a>
 </p>
@@ -85,6 +86,7 @@ Cheat sheets for Sections 5 to 7 are added as they are released.
 
 - Python 3.12 and [uv](https://docs.astral.sh/uv/)
 - An NVIDIA GPU for Sections 3 to 7. The course was recorded on an RTX 5090 with 32 GB; the PyTorch wheels come from the CUDA 12.8 index, which RTX 50 series cards need.
+- Or a Mac with Apple Silicon (M1 or newer), on this `macos` branch. See [Setup on a Mac](#setup-on-a-mac-apple-silicon).
 - [Ollama](https://ollama.com) for Sections 2 and 8
 - A free Hugging Face account and access token
 
@@ -115,6 +117,123 @@ ollama pull nimble
 ```bash
 ollama pull clef-flash
 ```
+
+## Setup on a Mac (Apple Silicon)
+
+This `macos` branch runs the course on a Mac with an M-series chip. PyTorch uses the Mac's own GPU through **MPS** (Metal Performance Shaders) instead of an NVIDIA GPU through CUDA. The course was recorded and tested on an NVIDIA GPU, so expect training to be slower on a Mac. The code is the same apart from the changes listed in [What changed for the Mac](#what-changed-for-the-mac).
+
+### 1. Install the tools
+
+You need Git, uv and Ollama. If you use [Homebrew](https://brew.sh):
+
+```bash
+brew install git uv
+```
+
+```bash
+brew install --cask ollama
+```
+
+- **Git** downloads this repository and Kev's data.
+- **uv** installs Python 3.12 and every library in `pyproject.toml` into a private `.venv` folder, so nothing touches the Python on your system.
+- **Ollama** runs the decision models in Section 2 and your own Mini Laya in Section 8. It runs natively on Apple Silicon.
+
+### 2. Get the `macos` branch
+
+```bash
+git clone -b macos https://github.com/laxmimerit/Fine-Tuning-System-One-Decision-Models.git
+```
+
+```bash
+cd Fine-Tuning-System-One-Decision-Models
+```
+
+`-b macos` checks out this branch instead of `main`. The notebooks on `main` use `"cuda"` directly, so on a Mac they would quietly run on the CPU or fail.
+
+### 3. Install the libraries
+
+```bash
+uv sync
+```
+
+On Windows and Linux, `pyproject.toml` takes PyTorch from the CUDA 12.8 index. On macOS it skips that index and installs the standard PyPI build of PyTorch, which includes MPS. `uv sync` picks the right one for your computer by itself.
+
+### 4. Check that PyTorch sees the Mac GPU
+
+```bash
+uv run python -c "import torch; print(torch.backends.mps.is_available())"
+```
+
+It should print `True`. If it prints `False`, check that you are on an Apple Silicon Mac, not an Intel one, and that macOS is version 14 (Sonoma) or newer. The PyTorch build this course installs needs macOS 14.
+
+### 5. Sign in to Hugging Face and pull the Ollama models
+
+These are the same steps as in [Setup](#setup):
+
+```bash
+uv run hf auth login
+```
+
+```bash
+ollama pull tev1
+```
+
+```bash
+ollama pull nimble
+```
+
+```bash
+ollama pull clef-flash
+```
+
+The Hugging Face login avoids download rate limits. The three Ollama models are the decision models Section 2 compares.
+
+### 6. Get Kev's data and open the notebooks
+
+```bash
+git clone https://github.com/jaredpalmer/kev vendor/kev
+```
+
+```bash
+uv run jupyter lab notebooks
+```
+
+Kev's labelled eval sets are used in Sections 3, 4 and 7 (see [Data for Sections 3 to 7](#data-for-sections-3-to-7)). Run the notebooks from the `notebooks` folder, in order.
+
+### What changed for the Mac
+
+Each notebook starts with one new cell that picks the device:
+
+```python
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+elif torch.backends.mps.is_available():
+    DEVICE = "mps"
+else:
+    DEVICE = "cpu"
+```
+
+On a Mac it prints `'mps'`. On an NVIDIA machine the same notebooks still pick `'cuda'`, so this branch works on both.
+
+| On `main` | On `macos` | Why |
+|---|---|---|
+| `device_map="cuda"`, `.to("cuda")`, `.cuda()` | `device_map=DEVICE`, `.to(DEVICE)` | Moves models and tensors to whichever GPU you have |
+| `laya.Agent(..., device="cuda")` | `laya.Agent(..., device=DEVICE)` | With `"cuda"` on a Mac, Laya falls back to the CPU with only a warning, which is much slower |
+| `torch.cuda.reset_peak_memory_stats()`, `torch.cuda.max_memory_allocated()` | `reset_peak_memory()`, `gpu_memory()` | MPS has no peak-memory counter. On a Mac, `gpu_memory()` shows the memory Metal holds at that moment, so the numbers differ from the video |
+| `bf16` / `fp16` mixed precision in `TrainingArguments` | On only when `DEVICE == "cuda"` | Mixed precision was only tested on CUDA; on a Mac the `Trainer` runs without it, which is slower but safe |
+| QLoRA cells in Section 6 | Wrapped in `if QLORA:`, skipped on a Mac | `bitsandbytes` 4-bit loading needs an NVIDIA GPU |
+
+The saved outputs in the notebooks still come from the recording on an NVIDIA GPU, so they show `device='cuda:0'`. Your outputs will show `mps:0`.
+
+### What runs where
+
+| Section | On a Mac |
+|---|---|
+| 1, 2, 3, 4, 5, 7 | Runs on MPS |
+| 6 | LoRA, saving, loading, merging and the Lab run on MPS. The QLoRA part needs an NVIDIA GPU: run `06_LoRA_QLoRA_and_PEFT.ipynb` in Google Colab with a T4 GPU to try it |
+| 8 | Runs as it is: `mini_laya_to_gguf.py` needs no GPU, and Ollama runs on Apple Silicon |
+
+On the RTX 5090, training in Sections 5 and 6 peaked at about 8 GB of GPU memory. A Mac shares one pool of memory between the CPU and GPU, so close other large apps before you train. Without mixed precision, memory use on a Mac will be higher than in the video.
 
 ## Data for Sections 3 to 7
 
